@@ -1,0 +1,28 @@
+# Core
+numpy
+pandas
+scipy
+scikit-learn
+matplotlib
+seaborn
+
+# Audio processing
+librosa
+soundfile
+
+# Speech-to-text
+openai-whisper
+torch
+torchaudio
+
+# NLP & Grammar
+transformers
+language-tool-python
+
+# ML models
+xgboost
+lightgbm
+
+# Notebook
+jupyter
+ipykernel
