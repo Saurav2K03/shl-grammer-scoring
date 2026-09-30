@@ -32,3 +32,10 @@ Thumbs.db
 # Misc
 *.log
 CHALLENGE_INFO.md
+WORK_LOG.md
+
+# Generated outputs (regenerable from notebook)
+transcripts/
+submission.csv
+train_features.csv
+test_features.csv
