@@ -9,45 +9,41 @@ Given a spoken audio sample (45–60 seconds, `.wav`), predict a continuous gram
 ## Approach
 
 ```
-Audio (.wav) → Whisper ASR → Transcript → Feature Engineering → Ensemble Model → Score (0-5)
+Audio (.wav) → Whisper ASR → Transcript + Metadata → Feature Engineering → XGBoost → Score (0-5)
 ```
 
 ### Pipeline
 
-1. **Speech-to-Text**: Transcribe all 985 audio files using OpenAI **Whisper base** model
-2. **Feature Engineering**: Extract **75 features** per sample
-   - **32 text features**: grammar errors (via LanguageTool), vocabulary richness, sentence structure, fluency indicators, parts-of-speech counts
+1. **Speech-to-Text**: Transcribe all 985 audio files using OpenAI Whisper
+2. **Feature Extraction**: Extract **~157 features** per sample
+   - **52 text features**: grammar errors (LanguageTool), readability scores (Flesch-Kincaid, ARI), vocabulary sophistication, sentence/clause structure, discourse markers, fluency indicators
    - **43 audio features**: MFCCs (13 × mean + std), pitch, energy (RMS), speaking rate, pause patterns, spectral centroid, zero crossing rate
-3. **Model Training**: Train 3 regressors with 5-fold cross-validation
-   - XGBoost, LightGBM, Ridge Regression
-4. **Ensemble**: Weighted average (inverse-RMSE weighting) of all models
+   - **12 Whisper metadata**: model confidence (avg_logprob), no-speech probability, compression ratio, decoding temperature
+   - **50 PCA embeddings**: MiniLM-L6-v2 sentence embeddings reduced from 384-dim
+3. **Model**: XGBoost regressor with strong regularization (5-fold CV)
+
+### Key Design Decisions
+
+- **Single XGBoost > Ensemble**: With only 769 training samples, blending multiple models added noise. A single well-regularized XGBoost outperformed all blend strategies on the leaderboard.
+- **PCA embeddings as direct features**: Feeding PCA-reduced sentence embeddings directly into XGBoost (instead of blending predictions from embedding-only models) improved generalization.
+- **Whisper metadata as features**: avg_logprob, no_speech_prob, and temperature capture transcription difficulty, which is a proxy for speech clarity.
 
 ## Results
 
-| Model | RMSE | Pearson R |
+**Leaderboard RMSE: 0.5570**
+
+*Cross-validation on training set (769 samples):*
+
+| Model | CV RMSE | CV Pearson R |
 |---|---|---|
-| **Ensemble** | **0.7167** | **0.8159** |
-| XGBoost | 0.7313 | 0.8070 |
-| LightGBM | 0.7400 | 0.8019 |
-| Ridge | 0.7540 | 0.7934 |
-
-*Evaluated using 5-fold cross-validation on the training set (769 samples).*
-
-### Top 5 Most Important Features (XGBoost)
-
-| Feature | Importance | Description |
-|---|---|---|
-| `spectral_centroid_mean` | 0.168 | Average brightness of voice signal |
-| `mfcc_0_mean` | 0.090 | Mean vocal energy/loudness |
-| `unique_word_count` | 0.075 | Vocabulary diversity |
-| `mfcc_1_std` | 0.045 | Variation in spectral slope |
-| `zcr_mean` | 0.041 | Zero crossing rate (speech vs noise) |
+| **XGBoost** | **0.6904** | **0.8307** |
+| Ridge (baseline) | 0.7126 | 0.8179 |
 
 ## Dataset
 
 - **Training**: 769 audio samples with grammar scores (0–5)
 - **Testing**: 216 audio samples (predictions required)
-- **Evaluation**: Pearson Correlation + RMSE
+- **Evaluation**: RMSE (leaderboard)
 
 > Dataset is not included in this repo. Download from the [Kaggle competition page](https://www.kaggle.com/competitions/shl-hiring-assessment-2026).
 
@@ -55,27 +51,21 @@ Audio (.wav) → Whisper ASR → Transcript → Feature Engineering → Ensemble
 
 ```
 ├── notebook.ipynb            # Main notebook: full pipeline end-to-end
-├── feature_extraction.py     # Feature extraction module (75 features)
+├── feature_extraction.py     # Feature extraction module (~107 features)
 ├── transcribe_audio.py       # Whisper transcription script
 ├── requirements.txt          # Python dependencies
-├── README.md                 # This file
+├── README.md
 │
-├── *.png                     # Visualizations
-│   ├── label_distribution.png
-│   ├── feature_correlations.png
-│   ├── correlation_heatmap.png
-│   ├── model_comparison.png
-│   ├── predicted_vs_actual.png
-│   ├── residual_analysis.png
-│   ├── feature_importance.png
-│   └── test_predictions.png
+├── transcripts/              # Whisper output (not tracked)
+│   ├── train_transcripts.json
+│   └── test_transcripts.json
 │
-└── Dataset_Final/            # Dataset (not tracked in git)
+└── Dataset_Final/            # Dataset (not tracked)
     ├── train.csv
     ├── test.csv
     ├── sample_submission.csv
-    ├── train/                # 769 training .wav files
-    └── test/                 # 216 test .wav files
+    ├── train/ (769 .wav files)
+    └── test/ (216 .wav files)
 ```
 
 ## Setup
@@ -88,19 +78,12 @@ conda activate shl
 # Install dependencies
 pip install -r requirements.txt
 
-# Transcribe audio files (takes ~1 hour on CPU)
-python transcribe_audio.py
+# Transcribe audio files
+KMP_DUPLICATE_LIB_OK=TRUE PYTHONUNBUFFERED=1 python transcribe_audio.py
 
 # Run the notebook
 jupyter notebook notebook.ipynb
 ```
-
-## Visualizations
-
-| | |
-|---|---|
-| ![Label Distribution](label_distribution.png) | ![Model Comparison](model_comparison.png) |
-| ![Feature Importance](feature_importance.png) | ![Predicted vs Actual](predicted_vs_actual.png) |
 
 ## Author
 

@@ -1,7 +1,7 @@
 """
 Transcribe all audio files using OpenAI Whisper.
-Saves results as JSON for reuse in the notebook.
-Run with: conda run -n shl python transcribe_audio.py
+Saves results as JSON with full segment metadata for feature extraction.
+Run with: conda run -n shl env KMP_DUPLICATE_LIB_OK=TRUE python transcribe_audio.py
 """
 import whisper
 import json
@@ -10,7 +10,7 @@ import time
 import torch
 
 # Configuration
-WHISPER_MODEL = "base"  # Fast transcription, decent accuracy
+WHISPER_MODEL = "small"  # Better accuracy than base
 TRAIN_DIR = "Dataset_Final/train"
 TEST_DIR = "Dataset_Final/test"
 OUTPUT_DIR = "transcripts"
@@ -28,7 +28,7 @@ def transcribe_all(audio_dir, output_file):
 
     # Determine device
     if torch.backends.mps.is_available():
-        device = "cpu"  # Whisper has issues with MPS for some operations, use CPU for stability
+        device = "cpu"  # Whisper has issues with MPS, use CPU for stability
         print(f"Using CPU (MPS available but Whisper is more stable on CPU)")
     else:
         device = "cpu"
@@ -51,18 +51,23 @@ def transcribe_all(audio_dir, output_file):
             result = model.transcribe(filepath, language="en", fp16=False)
             transcripts[filename] = {
                 "text": result["text"],
+                "language": result.get("language", "en"),
                 "segments": [
                     {
                         "start": seg["start"],
                         "end": seg["end"],
-                        "text": seg["text"]
+                        "text": seg["text"],
+                        "avg_logprob": seg.get("avg_logprob", 0),
+                        "no_speech_prob": seg.get("no_speech_prob", 0),
+                        "compression_ratio": seg.get("compression_ratio", 0),
+                        "temperature": seg.get("temperature", 0),
                     }
                     for seg in result["segments"]
                 ]
             }
         except Exception as e:
             print(f"  ERROR on {filename}: {e}")
-            transcripts[filename] = {"text": "", "segments": []}
+            transcripts[filename] = {"text": "", "language": "en", "segments": []}
 
         # Progress update
         elapsed = time.time() - start_time

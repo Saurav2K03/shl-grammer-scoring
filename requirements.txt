@@ -16,8 +16,8 @@ torch
 torchaudio
 
 # NLP & Grammar
-transformers
 language-tool-python
+sentence-transformers
 
 # ML models
 xgboost
